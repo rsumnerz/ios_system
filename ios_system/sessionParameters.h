@@ -13,7 +13,7 @@
 @property bool isMainThread;   // are we on the first command?
 @property NSString *currentDir;
 @property NSString *previousDirectory;
-@property NSURL    *localMiniRoot; 
+@property NSURL    *localMiniRoot;
 @property pthread_t current_command_root_thread; // thread ID of first command
 @property pthread_t lastThreadId; // thread ID of last command
 @property FILE* stdin;
@@ -22,6 +22,7 @@
 @property void* context;
 @property int global_errno;
 @property NSString* commandName;
+
 
 
 - (instancetype)init;
