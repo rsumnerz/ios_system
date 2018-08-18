@@ -1412,8 +1412,7 @@
 #define HAVE___FUNCTION__ 1
 
 /* Define if libc defines __progname */
-// #define HAVE___PROGNAME 1
-#undef HAVE___PROGNAME
+#define HAVE___PROGNAME 1
 
 /* Fields in struct sockaddr_storage */
 /* #undef HAVE___SS_FAMILY_IN_SS */

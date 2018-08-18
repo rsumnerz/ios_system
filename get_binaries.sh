@@ -1,6 +1,6 @@
 #!/bin/bash
 
-IOS_SYSTEM_VER="2.1"
+IOS_SYSTEM_VER="1.2"
 
 HHROOT="https://github.com/holzschu"
 
