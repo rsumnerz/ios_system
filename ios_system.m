@@ -61,6 +61,89 @@ extern const char* ios_progname(void) {
 }
 
 
+// Note: we could use dlsym() to make this code simpler, but it would also make it harder
+// to be accepted in the AppleStore. Dynamic libraries are already loaded, so it would be:
+// function = dlsym(argv[0] + "_main", RTLD_DEFAULT);
+
+#define FILE_UTILITIES   // file_cmds_ios
+#define ARCHIVE_UTILITIES // libarchive_ios
+#define SHELL_UTILITIES  // shell_cmds_ios
+#define TEXT_UTILITIES  // text_cmds_ios
+// to activate CURL, you need openSSL.framework and libssh2.framework
+// see, https://github.com/blinksh/blink or https://github.com/x2on/libssh2-for-iOS
+#define CURL_COMMANDS
+// to activate TEX_COMMANDS, you need the lib-tex libraries:
+// See: https://github.com/holzschu/lib-tex
+#define TEX_COMMANDS    // pdftex, luatex, bibtex and the like
+#define FEAT_PYTHON // if you don't need Python, you can remove Python_grp
+#define FEAT_LUA // if you don't need Lua, you can remove lua_grp
+
+#ifdef FILE_UTILITIES
+// Most useful file utilities (file_cmds_ios)
+extern int ls_main(int argc, char *argv[]);
+extern int touch_main(int argc, char *argv[]);
+extern int rm_main(int argc, char *argv[]);
+extern int cp_main(int argc, char *argv[]);
+extern int ln_main(int argc, char *argv[]);
+extern int mv_main(int argc, char *argv[]);
+extern int mkdir_main(int argc, char *argv[]);
+extern int rmdir_main(int argc, char *argv[]);
+// Useful
+extern int du_main(int argc, char *argv[]);
+extern int df_main(int argc, char *argv[]);
+extern int chksum_main(int argc, char *argv[]);
+extern int compress_main(int argc, char *argv[]);
+extern int gzip_main(int argc, char *argv[]);
+// Most likely useless in a sandboxed environment, but provided nevertheless
+extern int chmod_main(int argc, char *argv[]);
+extern int chflags_main(int argc, char *argv[]);
+extern int chown_main(int argc, char *argv[]);
+extern int stat_main(int argc, char *argv[]);
+#endif
+#ifdef ARCHIVE_UTILITIES
+// from libarchive:
+extern int tar_main(int argc, char **argv);
+#endif
+#ifdef CURL_COMMANDS
+extern int curl_main(int argc, char **argv);
+#endif
+
+#ifdef SHELL_UTILITIES
+extern int date_main(int argc, char *argv[]);
+extern int env_main(int argc, char *argv[]);     // does the same as printenv
+extern int hostname_main(int argc, char *argv[]);
+extern int id_main(int argc, char *argv[]); // also groups, whoami
+extern int printenv_main(int argc, char *argv[]);
+extern int pwd_main(int argc, char *argv[]);
+extern int uname_main(int argc, char *argv[]);
+extern int w_main(int argc, char *argv[]); // also uptime
+#endif
+#ifdef TEXT_UTILITIES
+extern int cat_main(int argc, char *argv[]);
+extern int grep_main(int argc, char *argv[]);
+extern int wc_main(int argc, char *argv[]);
+extern int ed_main(int argc, char *argv[]);
+extern int sed_main(int argc, char *argv[]);
+extern int awk_main(int argc, char *argv[]);
+#endif
+#ifdef FEAT_LUA
+extern int lua_main(int argc, char *argv[]);
+extern int luac_main(int argc, char *argv[]);
+#endif
+#ifdef FEAT_PYTHON
+extern int python_main(int argc, char **argv);
+#endif
+#ifdef TEX_COMMANDS
+extern int bibtex_main(int argc, char *argv[]);
+extern int dllluatexmain(int argc, char *argv[]);
+extern int dllpdftexmain(int argc, char *argv[]);
+#endif
+// local commands
+static int setenv_main(int argc, char *argv[]);
+static int unsetenv_main(int argc, char *argv[]);
+static int cd_main(int argc, char *argv[]);
+
+extern int    __db_getopt_reset;
 typedef struct _functionParameters {
     int argc;
     char** argv;
@@ -256,49 +339,135 @@ static char* parseArgument(char* argument, char* command) {
 
 static void initializeCommandList()
 {
-    // Loads command names and where to find them (digital library, function name) from plist dictionaries:
-    //
-    // Syntax for the dictionaris:
-    // key = command name, followed by an array of 4 components:
-    // 1st component: name of digital library (will be passed to dlopen(), can be SELF for RTLD_SELF or MAIN for RTLD_MAIN_ONLY)
-    // 2nd component: name of function to be called
-    // 3rd component: chain sent to getopt (for arguments in autocomplete)
-    // 4th component: takes a file/directory as argument
-    //
-    // Example:
-    //    <key>rlogin</key>
-    // <array>
-    // <string>libnetwork_ios.dylib</string>
-    // <string>rlogin_main</string>
-    // <string>468EKLNS:X:acde:fFk:l:n:rs:uxy</string>
-    // <string>no</string>
-    // </array>
+    commandList = @{
+#ifdef FILE_UTILITIES
+                    // Commands from Apple file_cmds:
+                    @"ls" : [NSValue valueWithPointer: ls_main],
+                    @"touch" : [NSValue valueWithPointer: touch_main],
+                    @"rm" : [NSValue valueWithPointer: rm_main],
+                    @"cp" : [NSValue valueWithPointer: cp_main],
+                    @"ln" : [NSValue valueWithPointer: ln_main],
+                    @"link" : [NSValue valueWithPointer: ln_main],
+                    @"mv" : [NSValue valueWithPointer: mv_main],
+                    @"mkdir" : [NSValue valueWithPointer: mkdir_main],
+                    @"rmdir" : [NSValue valueWithPointer: rmdir_main],
+                    @"chown" : [NSValue valueWithPointer: chown_main],
+                    @"chgrp" : [NSValue valueWithPointer: chown_main],
+                    @"chflags": [NSValue valueWithPointer: chflags_main],
+                    @"chmod": [NSValue valueWithPointer: chmod_main],
+                    @"du"   : [NSValue valueWithPointer: du_main],
+                    @"df"   : [NSValue valueWithPointer: df_main],
+                    @"chksum" : [NSValue valueWithPointer: chksum_main],
+                    @"sum"    : [NSValue valueWithPointer: chksum_main],
+                    @"stat"   : [NSValue valueWithPointer: stat_main],
+                    @"readlink": [NSValue valueWithPointer: stat_main],
+                    @"compress": [NSValue valueWithPointer: compress_main],
+                    @"uncompress": [NSValue valueWithPointer: compress_main],
+                    @"gzip"   : [NSValue valueWithPointer: gzip_main],
+                    @"gunzip" : [NSValue valueWithPointer: gzip_main],
+#endif
+#ifdef ARCHIVE_UTILITIES
+                    // from libarchive:
+                    @"tar"    : [NSValue valueWithPointer: tar_main],
+#endif
+#ifdef SHELL_UTILITIES
+                    // Commands from Apple shell_cmds:
+                    @"printenv": [NSValue valueWithPointer: printenv_main],
+                    @"pwd"    : [NSValue valueWithPointer: pwd_main],
+                    @"uname"  : [NSValue valueWithPointer: uname_main],
+                    @"date"   : [NSValue valueWithPointer: date_main],
+                    @"env"    : [NSValue valueWithPointer: env_main],
+                    @"id"     : [NSValue valueWithPointer: id_main],
+                    @"groups" : [NSValue valueWithPointer: id_main],
+                    @"whoami" : [NSValue valueWithPointer: id_main],
+                    @"uptime" : [NSValue valueWithPointer: w_main],
+                    @"w"      : [NSValue valueWithPointer: w_main],
+#endif
+#ifdef TEXT_UTILITIES
+                    // Commands from Apple text_cmds:
+                    @"cat"    : [NSValue valueWithPointer: cat_main],
+                    @"wc"     : [NSValue valueWithPointer: wc_main],
+                    // compiled, but deactivated until we have interactive mode
+//                    @"ed"     : [NSValue valueWithPointer: ed_main],
+//                    @"red"     : [NSValue valueWithPointer: ed_main],
+                    @"sed"     : [NSValue valueWithPointer: sed_main],
+                    @"awk"     : [NSValue valueWithPointer: awk_main],
+                    @"grep"   : [NSValue valueWithPointer: grep_main],
+                    @"egrep"  : [NSValue valueWithPointer: grep_main],
+                    @"fgrep"  : [NSValue valueWithPointer: grep_main],
+#endif
+#ifdef NETWORK_UTILITIES
+                    // Use with caution. Doesn't make sense except inside a terminal.
+                    // Commands from Apple network_cmds:
+                    @"ping"  : [NSValue valueWithPointer: ping_main],
+#endif
+#ifdef CURL_COMMANDS
+                    // From curl. curl with ssh requires keys, and thus keys generation / management.
+                    // We assume you moved over the keys, known_host files from elsewhere
+                    // http, https, ftp... should be OK.
+                    @"curl"   : [NSValue valueWithPointer: curl_main],
+                    // scp / sftp require conversion to curl, rewriting arguments
+                    @"scp"    : [NSValue valueWithPointer: curl_main],
+                    @"sftp"   : [NSValue valueWithPointer: curl_main],
+#endif
+#ifdef FEAT_PYTHON
+                    // from python:
+                    @"python"  : [NSValue valueWithPointer: python_main],
+#endif
+#ifdef FEAT_LUA
+                    // from lua:
+                    @"lua"     : [NSValue valueWithPointer: lua_main],
+                    @"luac"    : [NSValue valueWithPointer: luac_main],
+#endif
+#ifdef TEX_COMMANDS
+                    // from TeX:
+                    // LuaTeX:
+                    @"luatex"     : [NSValue valueWithPointer: dllluatexmain],
+                    @"lualatex"     : [NSValue valueWithPointer: dllluatexmain],
+                    @"texlua"     : [NSValue valueWithPointer: dllluatexmain],
+                    @"texluac"     : [NSValue valueWithPointer: dllluatexmain],
+                    @"dviluatex"     : [NSValue valueWithPointer: dllluatexmain],
+                    @"dvilualatex"     : [NSValue valueWithPointer: dllluatexmain],
+                    // pdfTeX
+                    @"amstex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"cslatex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"csplain"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"eplain"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"etex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"jadetex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"latex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"mex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"mllatex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"mltex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfcslatex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfcsplain"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfetex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfjadetex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdflatex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdftex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfmex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"pdfxmltex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"texsis"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"utf8mex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    @"xmltex"     : [NSValue valueWithPointer: dllpdftexmain],
+                    // XeTeX:
+                    // @"xetex"     : [NSValue valueWithPointer: dllxetexmain],
+                    // @"xelatex"     : [NSValue valueWithPointer: dllxetexmain],
+                    // BibTeX
+                    @"bibtex"     : [NSValue valueWithPointer: bibtex_main],
+#endif
+                    // local commands
+                    @"setenv"     : [NSValue valueWithPointer: setenv_main],
+                    @"unsetenv"     : [NSValue valueWithPointer: unsetenv_main],
+                    @"cd"     : [NSValue valueWithPointer: cd_main],
+                    };
+}
 
-    if (commandList != nil) return;
-    NSError *error;
-    NSString* applicationDirectory = [[NSBundle mainBundle] resourcePath];
-    NSString* commandDictionary = [applicationDirectory stringByAppendingPathComponent:@"commandDictionary.plist"];
-    NSURL *locationURL = [NSURL fileURLWithPath:commandDictionary isDirectory:NO];
-    if ([locationURL checkResourceIsReachableAndReturnError:&error] == NO) { NSLog(@"%@", [error localizedDescription]); return; }
-    NSData* loadedFromFile = [NSData dataWithContentsOfFile:commandDictionary  options:0 error:&error];
-    if (!loadedFromFile) { NSLog(@"%@", [error localizedDescription]); return; }
-    commandList = [NSPropertyListSerialization propertyListWithData:loadedFromFile options:NSPropertyListImmutable format:NULL error:&error];
-    if (!commandList) { NSLog(@"%@", [error localizedDescription]); return; }
-    // replaces the following command, marked as deprecated in the doc:
-    // commandList = [NSDictionary dictionaryWithContentsOfFile:commandDictionary];
-    if (sideLoading) {
-        // more commands, for sideloaders (commands that won't pass AppStore rules, or with licensing issues):
-        NSString* extraCommandsDictionary = [applicationDirectory stringByAppendingPathComponent:@"extraCommandsDictionary.plist"];
-        locationURL = [NSURL fileURLWithPath:extraCommandsDictionary isDirectory:NO];
-        if ([locationURL checkResourceIsReachableAndReturnError:&error] == NO) { NSLog(@"%@", [error localizedDescription]); return; }
-        NSData* extraLoadedFromFile = [NSData dataWithContentsOfFile:extraCommandsDictionary  options:0 error:&error];
-        if (!extraLoadedFromFile) { NSLog(@"%@", [error localizedDescription]); return; }
-        NSDictionary* extraCommandList = [NSPropertyListSerialization propertyListWithData:extraLoadedFromFile options:NSPropertyListImmutable format:NULL error:&error];
-        if (!extraCommandList) { NSLog(@"%@", [error localizedDescription]); return; }
-        // merge the two dictionaries:
-        NSMutableDictionary *mutableDict = [commandList mutableCopy];
-        [mutableDict addEntriesFromDictionary:extraCommandList];
-        commandList = [mutableDict mutableCopy];
+static int setenv_main(int argc, char** argv) {
+    if (argc <= 1) return env_main(argc, argv);
+    if (argc > 3) {
+        fprintf(stderr, "setenv: Too many arguments\n"); fflush(stderr);
+        return 0;
     }
 }
 
@@ -1097,6 +1266,9 @@ int ios_system(const char* inputCmd) {
         argv_copy[argc] = NULL;
         free(argv);
         argv = argv_copy;
+        // Because some commands change argv, keep a local copy for release.
+        char** argv_ref = (char **)malloc(sizeof(char*) * (argc + 1));
+        for (int i = 0; i < argc; i++) argv_ref[i] = argv[i];
         // We have the arguments. Parse them for environment variables, ~, etc.
         for (int i = 1; i < argc; i++) if (!dontExpand[i]) {  argv[i] = parseArgument(argv[i], argv[0]); }
         // wildcard expansion (*, ?, []...) Has to be after $ and ~ expansion, results in larger arguments
